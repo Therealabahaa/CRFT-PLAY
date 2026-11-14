@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تفعيل crft Play / Activate crft Play</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+/* crft studio palette: ink, paper, one orange */
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;background:#111111;color:#f3f1ec;font:15px Segoe UI,Tahoma,sans-serif;padding:0 32px;box-sizing:border-box}
+img{height:34px;align-self:flex-start;margin-bottom:22px}
+h2{margin:0 0 6px;font-weight:600}p{color:#b9b4ab;margin:6px 0 14px}.en{display:block;font-size:13px;color:#8f8a82;direction:ltr;text-align:right}
+code{display:block;direction:ltr;background:#1c1c1c;border:1px solid #2a2a2a;padding:10px 14px;border-radius:8px;font:19px Consolas,monospace;letter-spacing:1px;user-select:all}
+textarea{width:100%;box-sizing:border-box;direction:ltr;height:60px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #2a2a2a;background:#1c1c1c;color:#f3f1ec;font:16px Consolas,monospace;outline:none}
+textarea:focus{border-color:#f3f1ec}
+.row{display:flex;gap:8px}button{margin-top:12px;padding:12px 18px;border:0;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit}
+#go{flex:1;background:#ff5a1f;color:#111111}#copy{background:#2a2a2a;color:#f3f1ec}
+#err{color:#ff9a76;margin-top:10px;min-height:18px}
+</style></head><body>
+<img src="../public/crft-mark.png" alt="crft.">
+<h2>تفعيل crft Play <span class="en">Activate crft Play</span></h2>
+<p>أرسل رقم الجهاز هذا إلى crft studios لتحصل على مفتاح التفعيل:<span class="en">Send this machine ID to crft studios to get your activation key:</span></p>
+<code id="id">…</code>
+<p style="margin-top:18px">الصق مفتاح التفعيل: <span class="en">Paste the activation key:</span></p>
+<textarea id="key"></textarea>
+<div class="row"><button id="go">تفعيل / Activate</button><button id="copy">نسخ الرقم / Copy ID</button></div><div id="err"></div>
+<script>
+const $ = (s) => document.getElementById(s);
+psmDesktop.licenseId().then((v) => { $('id').textContent = v; });
+$('copy').onclick = () => navigator.clipboard.writeText($('id').textContent);
+$('go').onclick = async () => {
+  $('err').innerHTML = '';
+  if (!await psmDesktop.licenseActivate($('key').value)) $('err').innerHTML = 'هذا المفتاح غير صالح لهذا الجهاز.<span class="en">That key is not valid for this computer.</span>';
+};
+</script></body></html>

@@ -1,0 +1,26 @@
+node_modules/
+data/
+dist/
+
+# --- added before the first GitHub upload ---
+# real shop data (databases, backups, logs) and secrets. NEVER commit.
+data/
+.env
+.env.*
+*.db
+*.db-wal
+*.db-shm
+*.pem
+*.key
+# downloaded / built (recreated with npm install / the build)
+node_modules/
+dist/
+build/*.exe
+*.exe
+__pycache__/
+.pytest_cache/
+*.log
+# editor settings
+.idea/
+.cursor/
+.vscode/

@@ -1,0 +1,52 @@
+{
+  "name": "playstation-cyber-manager",
+  "productName": "crft Play",
+  "version": "1.0.0",
+  "description": "crft Play - gaming lounge management: sessions, cashier, inventory, shifts, reports",
+  "author": "crft studios",
+  "main": "electron/main.js",
+  "scripts": {
+    "app": "electron .",
+    "server": "node --disable-warning=ExperimentalWarning server.js",
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning test/smoke.js",
+    "dist": "electron-builder --win nsis"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^4.22.3"
+  },
+  "devDependencies": {
+    "electron": "^43.8.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.pscyber.manager",
+    "productName": "crft Play",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": [
+      "electron/**",
+      "server.js",
+      "src/**",
+      "public/**",
+      "build/icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "crft Play",
+      "artifactName": "crft-Play-Setup-${version}.exe"
+    }
+  }
+}
