@@ -301,6 +301,13 @@ function startUpdater() {
       message: `لازم تحدّث crft Play لنسخة ${m.version}\nAn update to crft Play ${m.version} is required.`,
       detail: notes(m) + 'النسخة اللي على الجهاز ده مبقتش شغالة. هيقفل البرنامج دقيقة ويفتح لوحده، والأجهزة والبيانات زي ما هي.\nThe version on this PC no longer works. crft Play closes for about a minute and opens again by itself. Your data stays exactly as it is.',
     }),
+    // updates are bought: only versions this PC's updates cover are offered
+    canUpdate: (m) => account.canUpdate('play', lic.machineId(), savedLicence(), m.version),
+    outOfPlan: (m, c) => dialog.showMessageBox(parent(), {
+      type: 'info', buttons: ['حسنًا · OK'], defaultId: 0, title: APP_NAME,
+      message: `نسخة جديدة من crft Play نزلت (${m.version})\ncrft Play ${m.version} is out.`,
+      detail: `تحديثاتك خلصت يوم ${c.updates_until}. نسختك الحالية هتفضل شغالة عادي — كلّم crft لو عايز تجدد التحديثات وتاخد الجديد.\nYour updates ended on ${c.updates_until}. Your current version keeps working — contact crft to renew updates and get the new one.`,
+    }),
     quit: () => app.quit(), log: (m) => console.log(m),
   });
   return updater;

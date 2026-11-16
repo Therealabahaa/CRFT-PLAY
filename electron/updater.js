@@ -108,11 +108,14 @@ function install(installer, exe) {
   cp.spawn('cmd.exe', ['/c', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 }
 
-/* start({ app: 'cafe', name: 'crft Café', version, exe, ask(m) -> Promise<boolean>, mustUpdate(m) -> Promise, quit(), log })
-   Checks 15 seconds after start, then every hour. `ask` offers an update ("Update now" / "Later");
-   `mustUpdate` says a required one is installing (no "Later"). check() also runs at once when crft.live
-   answers a renewal with "update required". */
-function start({ app, name, version, exe, ask, mustUpdate, quit, log = () => {} }) {
+/* start({ app: 'cafe', name: 'crft Café', version, exe, ask(m) -> Promise<boolean>, mustUpdate(m) -> Promise,
+           canUpdate(m) -> Promise<{ entitled, updates_until } | null>, outOfPlan(m, info) -> Promise, quit(), log })
+   Checks 15 seconds after start, then every hour. Updates are bought: before offering an optional one,
+   canUpdate asks crft.live whether this PC's updates cover it; if they ended, outOfPlan says a new version
+   is out (once per version per run) and nothing is installed. `ask` offers an update ("Update now" /
+   "Later"); `mustUpdate` says a required one (a free critical fix) is installing (no "Later"). check() also
+   runs at once when crft.live answers a renewal with "update required". */
+function start({ app, name, version, exe, ask, mustUpdate, canUpdate, outOfPlan, quit, log = () => {} }) {
   let busy = false, offered = '', retry = null;
   async function check() {
     if (busy) return; busy = true;
@@ -122,6 +125,13 @@ function start({ app, name, version, exe, ask, mustUpdate, quit, log = () => {} 
       if (!m || !isNewer(m.version, version)) return;
       required = isNewer(minVersion(m) || '0.0.0', version); // this version is older than the oldest allowed
       if (!required && offered === m.version) return; // an optional update is offered once per version per run
+      if (!required && canUpdate) { // bought updates: is this one theirs?
+        const c = await canUpdate(m);
+        if (!c || c.entitled !== true) {
+          if (c && c.entitled === false) { offered = m.version; log(`${name} ${m.version} is out; this PC's updates ended ${c.updates_until}`); if (outOfPlan) await outOfPlan(m, c); }
+          return; // no answer (offline): ask again next time
+        }
+      }
       const file = await download(m);
       offered = m.version;
       if (required && mustUpdate) await mustUpdate(m);

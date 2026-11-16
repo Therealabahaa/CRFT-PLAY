@@ -1,12 +1,11 @@
 'use strict';
 // Signing in with a crft account (the same file in crft Café, Play and Store).
 //
-// crft makes the account at crft.live/admin and gives it this system until an end date. The owner
-// signs in once on the activation screen; crft.live answers with a SUBSCRIPTION TOKEN signed by crft
-// (checked in license.js, which holds only the public key). The token is saved where an activation
-// key would be. It works until the subscription's end date, and must be renewed by its "check by"
-// date, a week ahead, which keepFresh() does by itself whenever the PC is online. The password is
-// never saved on the PC.
+// crft makes the account at crft.live/admin and gives it this system — bought once, with updates until a
+// date. The owner signs in once on the activation screen; crft.live answers with a TOKEN signed by crft
+// (checked in license.js, which holds only the public key). The token is saved where an activation key
+// would be. A bought system doesn't end; the token must only be renewed by its "check by" date (a month
+// ahead), which keepFresh() does by itself whenever the PC is online. The password is never saved on the PC.
 const https = require('https');
 const fs = require('fs');
 
@@ -38,6 +37,13 @@ function appVersion() {
 
 const activate = (app, machine, username, password, label) => post('/api/app/activate', { app, machine, username, password, label, version: appVersion() });
 const refresh = (app, machine, token) => post('/api/app/refresh', { app, machine, token, version: appVersion() });
+// Updates are bought: may this PC install `version`? { ok, entitled, updates_until } — an activation key (not an
+// account) bought before accounts existed gets every update.
+async function canUpdate(app, machine, saved, version) {
+  if (!isToken(saved)) return { ok: true, entitled: true };
+  const r = await post('/api/app/can-update', { app, machine, token: String(saved).trim(), version });
+  return r.status ? r : null; // null = no answer (offline): ask again later
+}
 const isToken = (text) => String(text || '').trim().includes('.');
 
 /* keepFresh({ app, machineId(), file, log, onUpdateRequired(answer) }): while the app runs, renews the saved
@@ -59,4 +65,4 @@ function keepFresh({ app, machineId, file, log = () => {}, onUpdateRequired = ()
   return { once };
 }
 
-module.exports = { activate, refresh, keepFresh, isToken };
+module.exports = { activate, refresh, canUpdate, keepFresh, isToken };
