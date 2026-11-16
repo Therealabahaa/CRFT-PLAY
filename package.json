@@ -1,7 +1,7 @@
 {
   "name": "playstation-cyber-manager",
   "productName": "crft Play",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "crft Play - gaming lounge management: sessions, cashier, inventory, shifts, reports",
   "author": "crft studios",
   "main": "electron/main.js",
@@ -25,7 +25,10 @@
   "build": {
     "appId": "com.pscyber.manager",
     "productName": "crft Play",
-    "directories": { "output": "dist", "buildResources": "build" },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
     "files": [
       "electron/**",
       "server.js",
