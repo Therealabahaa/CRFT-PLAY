@@ -30,6 +30,7 @@ export const del = (u) => api('DELETE', u);
 
 export function errText(err) {
   const code = err.code || err.message;
+  if (code === 'plan') return planText(err.data && err.data.need); // a part this bundle doesn't include (src/plan.js)
   let msg = t('err.' + code);
   if (msg === 'err.' + code) msg = t('err.generic') + (code ? ` (${code})` : '');
   if (err.data && err.data.product) msg += ` — ${err.data.product} (${t('stock')}: ${err.data.stock})`;
@@ -64,6 +65,24 @@ export function toLocalInput(ts) {
 }
 
 export const can = (perm) => state.user && (state.user.role === 'admin' || state.user.perms.includes(perm));
+
+// 📦 bundles (Starter / Pro / Max, from the crft account — src/plan.js). A page the bundle doesn't include stays in the
+// menu with a 🔒 and shows a short note instead; the server refuses its data too. Nothing is deleted.
+const PLAN_RANK = { starter: 1, pro: 2, max: 3 };
+export const PLAN_NAMES = { starter: 'Starter', pro: 'Pro', max: 'Max' };
+export const planOk = (need) => !need || (PLAN_RANK[state.plan] || 3) >= PLAN_RANK[need];
+export const planText = (need) => lang() === 'ar'
+  ? `ده في باقة ${PLAN_NAMES[need] || 'Pro'}. كلّم crft عشان ترقّي — بياناتك محفوظة.`
+  : `This is in the ${PLAN_NAMES[need] || 'Pro'} bundle. Ask crft to upgrade — your data is kept.`;
+export function lockedHtml(title, need) {
+  const ar = lang() === 'ar', cur = PLAN_NAMES[state.plan] || 'Starter', n = PLAN_NAMES[need];
+  return `<div class="card" style="max-width:560px;margin:24px">
+    <h2 style="margin:0 0 8px">🔒 ${esc(title)}${ar ? ` في باقة ${n}` : ` is in the ${n} bundle`}</h2>
+    <p class="muted" style="margin:0 0 10px">${ar
+      ? `النظام ده على باقة <b>${cur}</b>. كلّم crft عشان تنقل لباقة <b>${n}</b> والصفحة دي هتفتح على طول — ومفيش حاجة هتضيع: كل اللي اتسجل هنا محفوظ.`
+      : `This crft Play is on the <b>${cur}</b> bundle. Ask crft to move you to <b>${n}</b> and it opens straight away — nothing is lost: anything already saved here is kept.`}</p>
+    <p class="muted small" style="margin:0">${ar ? 'اللي في كل باقة' : 'What each bundle includes'}: <b>crft.live/buy</b></p></div>`;
+}
 
 /* ---------- UI helpers ---------- */
 export function toast(msg, isErr = false) {

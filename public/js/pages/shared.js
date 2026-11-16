@@ -1,5 +1,5 @@
 import { t } from '../i18n.js';
-import { state, get, post, esc, money, moneyText, modal, toast, toastErr, field, opt, fmtDateTime, fmtMinutes, formBox, icon, ls } from '../core.js';
+import { state, get, post, esc, money, moneyText, modal, toast, toastErr, field, opt, fmtDateTime, fmtMinutes, formBox, icon, ls, planOk } from '../core.js';
 import { printInvoice, openDrawer, mergeItems } from '../print.js';
 
 // cash · card (Visa) · online (InstaPay / Vodafone Cash) — like Kur's checkout
@@ -9,6 +9,7 @@ export const METHOD_ICON = { cash: '💵', card: '💳', online: '🌐', wallet:
 /* ---------- Customers ---------- */
 let customerCache = null;
 export async function loadCustomers(force) {
+  if (!planOk('pro')) return (customerCache = []); // customers are in Pro (src/plan.js): nothing to load below it
   if (!customerCache || force) customerCache = await get('/customers');
   return customerCache;
 }
@@ -27,6 +28,8 @@ export async function newCustomerDialog(prefill = {}) {
 }
 // <select name> of customers plus a "+" button. Call wireCustomerSelect(container) after mounting.
 export function customerSelectHtml(name, selected, { allowEmpty = true } = {}) {
+  // below Pro: an empty, hidden choice (the forms still read it) and a short note where the list would be
+  if (!planOk('pro')) return `<span class="muted small">🔒 Pro</span><select name="${name}" data-customer-select hidden><option value="" selected></option></select>`;
   const list = customerCache || [];
   return `<div class="row" style="flex-wrap:nowrap"><select name="${name}" data-customer-select>
     ${allowEmpty ? opt('', '—') : ''}${list.map((c) => opt(c.id, `${c.name}${c.phone ? ' · ' + c.phone : ''}${c.balance > 0 ? ` (${t('owes')} ${c.balance})` : ''}`, selected)).join('')}

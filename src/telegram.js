@@ -83,6 +83,7 @@ function notify(kind, text, opts = {}) {
 function notifyNow(kind, text, { minGapMs = 0, key = '' } = {}) {
   try {
     if (process.env.PSM_NO_TG) return;
+    if (!require('./plan').allows('max')) return; // the Telegram bot and alerts are in Max
     const c = config();
     if (!ready(c) || !c[kind]) return;
     if (minGapMs) {

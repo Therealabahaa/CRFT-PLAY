@@ -35,8 +35,9 @@ function appVersion() {
   return '';
 }
 
-const activate = (app, machine, username, password, label) => post('/api/app/activate', { app, machine, username, password, label, version: appVersion() });
-const refresh = (app, machine, token) => post('/api/app/refresh', { app, machine, token, version: appVersion() });
+// plan_token: this build reads the bundle (license.js), so crft.live answers with a token that carries it
+const activate = (app, machine, username, password, label) => post('/api/app/activate', { app, machine, username, password, label, version: appVersion(), plan_token: true });
+const refresh = (app, machine, token) => post('/api/app/refresh', { app, machine, token, version: appVersion(), plan_token: true });
 // Updates are bought: may this PC install `version`? { ok, entitled, updates_until } — an activation key (not an
 // account) bought before accounts existed gets every update.
 async function canUpdate(app, machine, saved, version) {

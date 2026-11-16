@@ -16,6 +16,7 @@ app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }))
 const admin = require('./src/routes/admin');
 app.use('/api', admin.pub);
 app.use('/api', requireAuth);
+app.use('/api', require('./src/plan').gate); // 📦 what the crft account's bundle doesn't include is refused here (src/plan.js)
 app.use('/api', admin.router);
 app.use('/api', require('./src/routes/sessions'));
 app.use('/api', require('./src/routes/cashier'));

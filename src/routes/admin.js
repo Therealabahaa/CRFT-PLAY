@@ -76,7 +76,7 @@ r.get('/me', h((req, res) => {
   const u = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(req.user.id);
   const st = settings();
   res.json({ user: req.user, default_password: isDefaultPassword(u.password_hash), shop_name: st.shop_name, currency: st.currency,
-    discount_limit: require('../billing').discountLimit(req.user) });
+    discount_limit: require('../billing').discountLimit(req.user), plan: require('../plan').currentPlan() });
 }));
 
 r.post('/me/password', h((req, res) => {

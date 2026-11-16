@@ -1,16 +1,17 @@
 import { t, lang, setLang, applyDir, setDefaultLang } from './i18n.js';
-import { state, get, post, esc, icon, can, errText, ls, fmtTime } from './core.js';
+import { state, get, post, esc, icon, can, errText, ls, fmtTime, planOk, lockedHtml, PLAN_NAMES } from './core.js';
 
+// plan: the bundle a page needs (src/plan.js); below it the page shows 🔒 and a short note instead
 const PAGES = [
   { id: 'floor', icon: 'gamepad', mod: './pages/floor.js' },
   { id: 'pos', icon: 'cart', mod: './pages/pos.js' },
-  { id: 'reservations', icon: 'calendar', mod: './pages/reservations.js' },
-  { id: 'customers', icon: 'users', mod: './pages/customers.js' },
+  { id: 'reservations', icon: 'calendar', mod: './pages/reservations.js', plan: 'pro' },
+  { id: 'customers', icon: 'users', mod: './pages/customers.js', plan: 'pro' },
   { id: 'invoices', icon: 'receipt', mod: './pages/invoices.js' },
-  { id: 'inventory', icon: 'box', mod: './pages/inventory.js' },
-  { id: 'expenses', icon: 'wallet', mod: './pages/expenses.js', perm: 'expenses' },
+  { id: 'inventory', icon: 'box', mod: './pages/inventory.js', plan: 'pro' },
+  { id: 'expenses', icon: 'wallet', mod: './pages/expenses.js', perm: 'expenses', plan: 'pro' },
   { id: 'shift', icon: 'clock', mod: './pages/shift.js' },
-  { id: 'reports', icon: 'chart', mod: './pages/reports.js', perm: 'reports' },
+  { id: 'reports', icon: 'chart', mod: './pages/reports.js', perm: 'reports', plan: 'pro' },
   { id: 'settings', icon: 'cog', mod: './pages/settings.js' },
 ];
 
@@ -113,7 +114,7 @@ function renderShell() {
   app.innerHTML = `<div class="shell">
     <aside class="side">
       <div class="brand"><img class="brand-logo" src="/crft-icon.png" alt=""><span>${esc(state.settings.shop_name || t('app_name'))}</span></div>
-      <nav class="nav">${visible.map((p) => `<a href="#/${p.id}" data-page="${p.id}" draggable="false">${icon(p.icon)}<span>${t('nav.' + p.id)}</span></a>`).join('')}</nav>
+      <nav class="nav">${visible.map((p) => `<a href="#/${p.id}" data-page="${p.id}" draggable="false">${icon(p.icon)}<span>${t('nav.' + p.id)}${planOk(p.plan) ? '' : ` <small style="opacity:.6" title="${PLAN_NAMES[p.plan]}">🔒</small>`}</span></a>`).join('')}</nav>
       <div class="side-foot">
         <div class="row small"><span>${icon('user')}</span><b>${esc(state.user.name)}</b><span class="muted">${t('role.' + state.user.role)}</span></div>
       </div>
@@ -162,6 +163,7 @@ async function route() {
   el.className = 'page';
   old.replaceWith(el);
   document.title = `${t('nav.' + page.id)} · ${state.settings.shop_name || t('app_name')}`;
+  if (!planOk(page.plan)) { el.innerHTML = lockedHtml(t('nav.' + page.id), page.plan); return; } // not in this bundle
   try {
     const mod = await import(page.mod);
     cleanup = (await mod.render(el)) || null;
@@ -176,6 +178,7 @@ async function boot() {
   state.user = me.user;
   state.defaultPassword = me.default_password;
   state.discountLimit = me.discount_limit;
+  state.plan = me.plan || 'max';
   state.settings = await get('/settings');
   setDefaultLang(state.settings.language);
   renderShell();

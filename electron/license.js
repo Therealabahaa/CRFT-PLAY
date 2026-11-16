@@ -60,8 +60,11 @@ function readToken(token) {
   const payload = unb64url(p).toString('utf8'), bytes = unb64url(sig);
   if (bytes.length !== 64) return null;
   try { if (!crypto.verify(null, Buffer.from(payload), SUB_KEY, bytes)) return null; } catch { return null; }
-  const [v, app, machine, account, endsOn, checkBy] = payload.split('|');
-  return v === 'crft-sub-v1' ? { app, machine, account: Number(account), endsOn, checkBy } : null;
+  // v2 adds the bundle (starter / pro / max); a v1 token (from before bundles) includes everything
+  const [v, app, machine, account, endsOn, checkBy, plan] = payload.split('|');
+  if (v === 'crft-sub-v1') return { app, machine, account: Number(account), endsOn, checkBy, plan: 'max' };
+  if (v === 'crft-sub-v2') return { app, machine, account: Number(account), endsOn, checkBy, plan: ['starter', 'pro', 'max'].includes(plan) ? plan : 'starter' };
+  return null;
 }
 
 /* Whether what is saved opens the app, and why not:
@@ -69,13 +72,13 @@ function readToken(token) {
    'ended' = the subscription's end date passed; 'check' = not renewed online for over a week. */
 function status(id, saved) {
   const text = String(saved || '').trim();
-  if (!text.includes('.')) return { ok: verifyKey(id, text), kind: 'key' };
+  if (!text.includes('.')) return { ok: verifyKey(id, text), kind: 'key', plan: 'max' }; // an activation key sold before bundles: everything
   const t = readToken(text);
   if (!t || t.app !== APP || t.machine !== String(id).trim().toUpperCase()) return { ok: false, kind: 'account', reason: 'invalid' };
   const d = today();
   if (d > t.endsOn) return { ok: false, kind: 'account', reason: 'ended', endsOn: t.endsOn };
   if (d > t.checkBy) return { ok: false, kind: 'account', reason: 'check', endsOn: t.endsOn, checkBy: t.checkBy };
-  return { ok: true, kind: 'account', endsOn: t.endsOn, checkBy: t.checkBy, daysLeft: dayGap(d, t.endsOn) };
+  return { ok: true, kind: 'account', endsOn: t.endsOn, checkBy: t.checkBy, daysLeft: dayGap(d, t.endsOn), plan: t.plan };
 }
 const verify = (id, key) => status(id, key).ok;
 

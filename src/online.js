@@ -35,7 +35,7 @@ const online = require('./online-menu')({
   app: 'play',
   machineId: () => require('../electron/license').machineId(),
   key: () => fs.readFileSync(path.join(process.env.LOCALAPPDATA || os.homedir(), 'PlayStation Cyber', 'license.key'), 'utf8'), // where electron/main.js saves it
-  config: () => { const s = settings(); return { on: s.online_menu === '1', slug: s.online_slug }; },
+  config: () => { const s = settings(); return { on: s.online_menu === '1' && require('./plan').allows('max'), slug: s.online_slug }; }, // the online menu is in Max
   menu,
   log: (m) => console.log(m),
 });

@@ -9,7 +9,7 @@
     "app": "electron .",
     "server": "node --disable-warning=ExperimentalWarning server.js",
     "start": "node --disable-warning=ExperimentalWarning server.js",
-    "test": "node --disable-warning=ExperimentalWarning test/smoke.js",
+    "test": "node --disable-warning=ExperimentalWarning test/smoke.js && node test/plans.js",
     "dist": "electron-builder --win nsis"
   },
   "license": "ISC",

@@ -1,5 +1,5 @@
 import { t, deviceLang, setDeviceLang, setDefaultLang } from '../i18n.js';
-import { state, get, post, put, del, esc, money, icon, field, opt, formBox, toast, toastErr, delegate, fmtDateTime, dayKey, can, confirmBox, fmtMinutes, busy } from '../core.js';
+import { state, get, post, put, del, esc, money, icon, field, opt, formBox, toast, toastErr, delegate, fmtDateTime, dayKey, can, confirmBox, fmtMinutes, busy, planOk, lockedHtml } from '../core.js';
 import { desktop, printInvoice, openDrawer, receiptDocument, testInvoice } from '../print.js';
 
 const PERMS = ['discount', 'refund', 'inventory', 'expenses', 'reports', 'manage'];
@@ -79,6 +79,8 @@ export async function render(root) {
           <button class="btn" data-act="test-print">${icon('print')} ${t('test_print')}</button>
           ${desktop() ? `<button class="btn" data-act="open-drawer">${icon('wallet')} ${t('open_drawer')}</button>` : ''}</div>
         <div><b class="small">${t('preview')}</b><iframe data-preview style="display:block;margin-top:6px;width:${s.paper === '58' ? 240 : 320}px;height:420px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe></div></form>`;
+    } else if ((tab === 'online' || tab === 'telegram') && !planOk('max')) {
+      body = lockedHtml(tab === 'online' ? t('om_title') : t('telegram_title'), 'max'); // the online menu and Telegram are in Max (src/plan.js)
     } else if (tab === 'online') {
       // 🌐 the price list on crft.live/m/<name> (src/online.js): customers open it on their own mobile data, no shop Wi-Fi needed
       const o = await get('/online-menu');
