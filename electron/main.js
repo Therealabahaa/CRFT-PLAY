@@ -281,11 +281,37 @@ function activationWindow() {
 }
 
 const checkLicence = app.isPackaged || process.env.PSM_LICENCE === '1'; // PSM_LICENCE=1 tries the activation screen from source
+// automatic updates from crft.live, signed by crft (see updater.js). The installed app only. Started as soon as the
+// app opens — also on the activation screen — so a copy locked for being too old can still update itself.
+let updater = null;
+function startUpdater() {
+  if (updater || !app.isPackaged) return updater;
+  const parent = () => (win && !win.isDestroyed() ? win : undefined);
+  const notes = (m) => [m.notes?.ar, m.notes?.en].filter(Boolean).join('\n') + (m.notes?.ar || m.notes?.en ? '\n\n' : '');
+  updater = require('./updater').start({
+    app: 'play', name: 'crft Play', version: app.getVersion(), exe: process.execPath,
+    ask: (m) => dialog.showMessageBox(parent(), {
+      type: 'info', buttons: ['حدّث الآن · Update now', 'لاحقًا · Later'], defaultId: 0, cancelId: 1, title: APP_NAME,
+      message: `نسخة جديدة من crft Play جاهزة (${m.version})\ncrft Play ${m.version} is ready to install.`,
+      detail: notes(m) + 'هيقفل البرنامج دقيقة ويفتح لوحده، والأجهزة والبيانات زي ما هي.\ncrft Play closes for about a minute and opens again by itself. Your data stays exactly as it is.',
+    }).then((r) => r.response === 0),
+    // a required update: one button, no "Later" — this version no longer works
+    mustUpdate: (m) => dialog.showMessageBox(parent(), {
+      type: 'warning', buttons: ['حدّث الآن · Update now'], defaultId: 0, cancelId: 0, noLink: true, title: APP_NAME,
+      message: `لازم تحدّث crft Play لنسخة ${m.version}\nAn update to crft Play ${m.version} is required.`,
+      detail: notes(m) + 'النسخة اللي على الجهاز ده مبقتش شغالة. هيقفل البرنامج دقيقة ويفتح لوحده، والأجهزة والبيانات زي ما هي.\nThe version on this PC no longer works. crft Play closes for about a minute and opens again by itself. Your data stays exactly as it is.',
+    }),
+    quit: () => app.quit(), log: (m) => console.log(m),
+  });
+  return updater;
+}
 app.whenReady().then(async () => {
+  startUpdater(); // first, so even a copy that can't open (too old to renew) still gets its update
   // a crft account's token that lapsed while the PC was off: renewed now if there is internet, before asking anyone
   if (checkLicence && !licensed() && account.isToken(savedLicence())) {
     const r = await account.refresh('play', lic.machineId(), savedLicence());
     if (r.ok && r.token && lic.status(lic.machineId(), r.token).ok) saveLicence(r.token);
+    else if (r.update_required) updater?.check();
   }
   if (!checkLicence || licensed()) startApp(); else activationWindow();
 });
@@ -323,7 +349,7 @@ async function startApp() {
   buildMenu();
   // a crft account: keep its token renewed, and say so a week before the subscription ends
   if (checkLicence) {
-    account.keepFresh({ app: 'play', machineId: lic.machineId, file: LIC_FILE, log: (m) => console.log(m) });
+    account.keepFresh({ app: 'play', machineId: lic.machineId, file: LIC_FILE, log: (m) => console.log(m), onUpdateRequired: () => startUpdater()?.check() });
     const st = licState();
     if (st.kind === 'account' && st.daysLeft <= 7) setTimeout(() => dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
       type: 'warning', title: APP_NAME, buttons: ['حسنًا · OK'],
@@ -332,17 +358,6 @@ async function startApp() {
       detail: 'كلّم crft للتجديد. · Contact crft to renew it.',
     }), 3000);
   }
-  // automatic updates from crft.live, signed by crft (see updater.js). The installed app only.
-  if (app.isPackaged) require('./updater').start({
-    app: 'play', name: 'crft Play', version: app.getVersion(), exe: process.execPath,
-    ask: (m) => dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
-      type: 'info', buttons: ['حدّث الآن · Update now', 'لاحقًا · Later'], defaultId: 0, cancelId: 1, title: APP_NAME,
-      message: `نسخة جديدة من crft Play جاهزة (${m.version})\ncrft Play ${m.version} is ready to install.`,
-      detail: [m.notes?.ar, m.notes?.en].filter(Boolean).join('\n') + (m.notes?.ar || m.notes?.en ? '\n\n' : '') +
-        'هيقفل البرنامج دقيقة ويفتح لوحده، والأجهزة والبيانات زي ما هي.\ncrft Play closes for about a minute and opens again by itself. Your data stays exactly as it is.',
-    }).then((r) => r.response === 0),
-    quit: () => app.quit(), log: (m) => console.log(m),
-  });
   if (activation) activation.destroy(); // the main window exists first, so closing this one doesn't quit the app
 }
 

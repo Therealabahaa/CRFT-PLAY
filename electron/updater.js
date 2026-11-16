@@ -9,6 +9,11 @@
 //
 // The owner is asked first ("Update now" / "Later"). Updating runs the installer silently,
 // which keeps the data folder (see build/installer.nsh), and opens the app again.
+//
+// REQUIRED updates: the file also says min_version, the oldest version still allowed to run,
+// signed separately (sig2). When this version is older, there is no "Later": mustUpdate()
+// shows "Update required" and the update installs. crft.live also refuses to renew the crft
+// account of a version that old, so nothing keeps working without the update.
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
@@ -42,6 +47,14 @@ function verifyManifest(m, app) {
   if (typeof m.url !== 'string' || !m.url.startsWith(BASE) || /[\s"'&|<>^%]/.test(m.url)) return false;
   const msg = Buffer.from(`crft-update-v1|${m.app}|${m.version}|${m.url}|${m.sha256}`);
   try { return crypto.verify(null, msg, PUBLIC_KEY, b32bytes(m.sig)); } catch { return false; }
+}
+
+// The oldest version still allowed to run, only if crft signed it (sig2) — else '' (nothing required)
+function minVersion(m) {
+  const min = String(m && m.min_version || '');
+  if (!/^\d+\.\d+\.\d+$/.test(min) || isNewer(min, m.version)) return ''; // never above what is published
+  const msg = Buffer.from(`crft-update-v2|${m.app}|${m.version}|${m.url}|${m.sha256}|${min}`);
+  try { return crypto.verify(null, msg, PUBLIC_KEY, b32bytes(m.sig2)) ? min : ''; } catch { return ''; }
 }
 
 function get(url, onResponse) {
@@ -95,24 +108,33 @@ function install(installer, exe) {
   cp.spawn('cmd.exe', ['/c', script], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 }
 
-/* start({ app: 'cafe', name: 'crft Café', version, exe, ask(m) -> Promise<boolean>, quit(), log })
-   Checks a minute after start, then every 6 hours. `ask` shows the owner the question. */
-function start({ app, name, version, exe, ask, quit, log = () => {} }) {
-  let busy = false, offered = '';
+/* start({ app: 'cafe', name: 'crft Café', version, exe, ask(m) -> Promise<boolean>, mustUpdate(m) -> Promise, quit(), log })
+   Checks 15 seconds after start, then every hour. `ask` offers an update ("Update now" / "Later");
+   `mustUpdate` says a required one is installing (no "Later"). check() also runs at once when crft.live
+   answers a renewal with "update required". */
+function start({ app, name, version, exe, ask, mustUpdate, quit, log = () => {} }) {
+  let busy = false, offered = '', retry = null;
   async function check() {
     if (busy) return; busy = true;
+    let required = false;
     try {
       const m = await latest(app);
-      if (!m || !isNewer(m.version, version) || offered === m.version) return;
+      if (!m || !isNewer(m.version, version)) return;
+      required = isNewer(minVersion(m) || '0.0.0', version); // this version is older than the oldest allowed
+      if (!required && offered === m.version) return; // an optional update is offered once per version per run
       const file = await download(m);
-      offered = m.version; // asked once per version per run; "Later" is asked again after the next start
-      if (await ask(m)) { log(`Updating ${name} to ${m.version}`); install(file, exe); quit(); }
-    } catch (e) { log('Update check: ' + (e && e.message || e)); } // offline, or the server is down: try again later
-    finally { busy = false; }
+      offered = m.version;
+      if (required && mustUpdate) await mustUpdate(m);
+      else if (!(await ask(m))) return;
+      log(`Updating ${name} to ${m.version}${required ? ' (required)' : ''}`); install(file, exe); quit();
+    } catch (e) {
+      log('Update check: ' + (e && e.message || e)); // offline, or the server is down: try again later
+      if (required) { clearTimeout(retry); retry = setTimeout(check, 5 * 60 * 1000); retry.unref?.(); } // a required one: soon
+    } finally { busy = false; }
   }
-  setTimeout(check, 60 * 1000).unref?.();
-  setInterval(check, 6 * 60 * 60 * 1000).unref?.();
+  setTimeout(check, 15 * 1000).unref?.();
+  setInterval(check, 60 * 60 * 1000).unref?.(); // a required update reaches every open copy within the hour
   return { check };
 }
 
-module.exports = { start, isNewer, verifyManifest };
+module.exports = { start, isNewer, verifyManifest, minVersion };

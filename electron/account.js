@@ -28,22 +28,31 @@ function post(path, body) {
   });
 }
 
-const activate = (app, machine, username, password, label) => post('/api/app/activate', { app, machine, username, password, label });
-const refresh = (app, machine, token) => post('/api/app/refresh', { app, machine, token });
+// This app's version, sent with every sign-in and renewal: crft.live refuses versions older than the
+// newest required release (an "update required" answer, with the download link).
+function appVersion() {
+  try { const { app } = require('electron'); if (app && typeof app.getVersion === 'function') return app.getVersion(); } catch { /* not in Electron */ }
+  for (const p of ['./package.json', '../package.json']) { try { return require(p).version; } catch { /* next */ } }
+  return '';
+}
+
+const activate = (app, machine, username, password, label) => post('/api/app/activate', { app, machine, username, password, label, version: appVersion() });
+const refresh = (app, machine, token) => post('/api/app/refresh', { app, machine, token, version: appVersion() });
 const isToken = (text) => String(text || '').trim().includes('.');
 
-/* keepFresh({ app, machineId(), file, log }): while the app runs, renews the saved token 30 seconds after
-   start and then every 6 hours, if the saved licence is a token (an activation key needs nothing).
-   A refusal (account switched off, PC removed, subscription ended) leaves the token as it is: it then
-   runs out by itself, and the activation screen says why. */
-function keepFresh({ app, machineId, file, log = () => {} }) {
+/* keepFresh({ app, machineId(), file, log, onUpdateRequired(answer) }): while the app runs, renews the saved
+   token 30 seconds after start and then every 6 hours, if the saved licence is a token (an activation key
+   needs nothing). A refusal (account switched off, PC removed, subscription ended, or this version too old)
+   leaves the token as it is: it then runs out by itself, and the activation screen says why. "Too old" also
+   calls onUpdateRequired, so the update is offered right away. */
+function keepFresh({ app, machineId, file, log = () => {}, onUpdateRequired = () => {} }) {
   async function once() {
     let saved = '';
     try { saved = fs.readFileSync(file, 'utf8').trim(); } catch { return; }
     if (!isToken(saved)) return;
     const r = await refresh(app, machineId(), saved);
     if (r.ok && r.token) fs.writeFileSync(file, r.token);
-    else if (r.status) log('crft account: ' + (r.error || r.status));
+    else if (r.status) { log('crft account: ' + (r.error || r.status)); if (r.update_required) onUpdateRequired(r); }
   }
   setTimeout(once, 30 * 1000).unref?.();
   setInterval(once, 6 * 60 * 60 * 1000).unref?.();
