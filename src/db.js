@@ -300,6 +300,8 @@ const DEFAULT_SETTINGS = {
   open_drawer_on_cash: '0', // kick the cash drawer when a cash payment is taken
   max_discount_pct: '20',   // biggest discount (% of the bill) a cashier can give without the "unlimited discount" permission
   max_discount_egp: '',     // …and in EGP per bill ('' = no money limit)
+  online_menu: '0',         // 🌐 the menu on crft.live/m/<online_slug> (src/online.js)
+  online_slug: '',
 };
 // Settings that must never reach the page (e.g. the Telegram bot token). Read them with secret().
 const SECRET_PREFIX = 'tg_';

@@ -4,6 +4,7 @@ const { h, bad, notFound, forbidden, int, num, str, range, HttpError } = require
 const { requirePerm, PERMS, hashPassword, verifyPassword, isDefaultPassword, publicUser, createToken } = require('../auth');
 const backup = require('../backup');
 const tg = require('../telegram');
+const { online, withQr } = require('../online');
 
 const pub = express.Router();   // no auth
 const r = express.Router();     // authenticated
@@ -221,7 +222,11 @@ r.get('/settings', h((req, res) => res.json(settings())));
 r.put('/settings', requirePerm('manage'), h((req, res) => {
   const logo = (req.body || {}).receipt_logo;   // '' removes it; otherwise the black-and-white picture the Settings page made
   if (logo !== undefined && logo !== '' && !(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(String(logo)) && String(logo).length <= 400000)) throw bad('logo_invalid');
-  setSettings(req.body || {});
+  const body = req.body || {};
+  if (body.online_slug !== undefined) body.online_slug = online.cleanSlug(body.online_slug);
+  if (body.online_menu !== undefined) body.online_menu = String(body.online_menu) === '1' ? '1' : '0';
+  setSettings(body);
+  if (['online_menu', 'online_slug', 'shop_name', 'language'].some((k) => body[k] !== undefined)) online.sync(true);   // published / taken down at once
   audit(req.user.id, 'settings.update', logo ? { ...req.body, receipt_logo: '(new picture)' } : req.body);   // not the picture itself in the log
   res.json(settings());
 }));
@@ -265,5 +270,10 @@ r.get('/audit', requirePerm('manage'), h((req, res) => {
   res.json(db.prepare(`SELECT a.*, u.name user_name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
     WHERE a.created_at BETWEEN ? AND ? ${extra} ORDER BY a.id DESC LIMIT 2000`).all(...args));
 }));
+
+/* ---------- 🌐 Online menu (src/online.js) ---------- */
+r.get('/online-menu', requirePerm('manage'), h((req, res) => res.json(withQr(online.status()))));
+r.post('/online-menu/publish', requirePerm('manage'), h(async (req, res) => { await online.sync(true); res.json(withQr(online.status())); }));
+r.get('/online-menu/check', requirePerm('manage'), h(async (req, res) => res.json(await online.available(req.query.slug))));
 
 module.exports = { pub, router: r };

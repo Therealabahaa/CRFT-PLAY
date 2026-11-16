@@ -6,7 +6,7 @@ const PERMS = ['discount', 'refund', 'inventory', 'expenses', 'reports', 'manage
 
 export async function render(root) {
   const manage = can('manage');
-  const tabs = manage ? ['consoles', 'packages', 'general', 'printing', 'telegram', 'staff', 'language', 'signins', 'backups', 'audit'] : ['staff', 'language'];
+  const tabs = manage ? ['consoles', 'packages', 'general', 'printing', 'online', 'telegram', 'staff', 'language', 'signins', 'backups', 'audit'] : ['staff', 'language'];
   let tab = location.hash.includes('tab=') ? location.hash.split('tab=')[1] : tabs[0];
   if (!tabs.includes(tab)) tab = tabs[0];
   let auditDay = dayKey();
@@ -79,6 +79,23 @@ export async function render(root) {
           <button class="btn" data-act="test-print">${icon('print')} ${t('test_print')}</button>
           ${desktop() ? `<button class="btn" data-act="open-drawer">${icon('wallet')} ${t('open_drawer')}</button>` : ''}</div>
         <div><b class="small">${t('preview')}</b><iframe data-preview style="display:block;margin-top:6px;width:${s.paper === '58' ? 240 : 320}px;height:420px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe></div></form>`;
+    } else if (tab === 'online') {
+      // 🌐 the price list on crft.live/m/<name> (src/online.js): customers open it on their own mobile data, no shop Wi-Fi needed
+      const o = await get('/online-menu');
+      const suggest = o.slug || String(state.settings.shop_name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+      body = `<div class="card stack" style="max-width:720px"><h2>🌐 ${t('om_title')}</h2>
+        <p class="muted small" style="margin:0">${t('om_intro')}</p>
+        <label class="check"><input type="checkbox" data-om-on ${o.on ? 'checked' : ''}> <b>${t('om_on')}</b></label>
+        ${field(t('om_address'), `<div class="row" style="flex-wrap:nowrap;align-items:center" dir="ltr"><span class="muted">crft.live/m/</span><input data-om-slug value="${esc(suggest)}" maxlength="40" placeholder="my-lounge" autocomplete="off" spellcheck="false"><button class="btn" data-act="om-save">${t('save')}</button></div>`)}
+        <p class="muted small" data-om-hint style="margin:0">${t('om_hint')}</p>
+        ${o.on && o.slug ? (o.published
+          ? `<div class="banner info" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><img data-om-qr src="${o.qr}" alt="QR" style="width:140px;height:140px;background:#fff;border-radius:6px;image-rendering:pixelated">
+              <div style="flex:1;min-width:200px">✅ <b>${t('om_live')}</b>${o.at ? ` <span class="muted small">· ${fmtDateTime(o.at)}</span>` : ''}<br><a href="${esc(o.url)}" target="_blank" rel="noopener" dir="ltr">${esc(o.url)}</a>
+                <div class="row" style="margin-top:10px"><button class="btn" data-act="om-dl">${t('om_download_qr')}</button><button class="btn" data-act="om-now">${t('om_update_now')}</button></div>
+                <p class="muted small" style="margin:6px 0 0">${t('om_qr_stays')}</p></div></div>`
+          : `<div class="banner warn">${o.error ? esc(o.error) : t('om_sending')} <button class="btn btn-sm" data-act="om-now">${t('om_try_again')}</button></div>`) : ''}
+      </div>`;
+      root._online = o;
     } else if (tab === 'telegram') {
       const c = await get('/telegram');
       const isReady = c.token_set && c.chat;
@@ -173,6 +190,24 @@ export async function render(root) {
       ${body}`;
     const ad = root.querySelector('[data-audit-day]');
     if (ad) ad.addEventListener('change', () => { auditDay = ad.value || dayKey(); draw(); });
+    const omOn = root.querySelector('[data-om-on]'), omSlug = root.querySelector('[data-om-slug]');
+    if (omOn) omOn.addEventListener('change', async () => {
+      if (omOn.checked && !omSlug.value.trim()) { omOn.checked = false; omSlug.focus(); return toast(t('om_type_address'), true); }
+      try { state.settings = await put('/settings', { online_menu: omOn.checked ? '1' : '0', online_slug: omSlug.value }); toast(omOn.checked ? t('om_sending') : t('om_taken_down')); draw(); }
+      catch (e) { toastErr(e); }
+    });
+    if (omSlug) {
+      let timer;
+      omSlug.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(async () => {
+          const r = await get('/online-menu/check?slug=' + encodeURIComponent(omSlug.value)).catch(() => null);
+          const hint = root.querySelector('[data-om-hint]');
+          if (!r || !hint) return;
+          hint.textContent = r.slug === root._online.slug && root._online.published ? t('om_yours') : r.available ? `✓ crft.live/m/${r.slug} ${t('om_free')}` : (r.error || `crft.live/m/${r.slug} ${t('om_taken')}`);
+        }, 500);
+      });
+    }
     const as = root.querySelector('[data-autostart]');
     if (as) as.addEventListener('change', async () => { const on = await window.psmDesktop.autostart(as.checked); as.checked = !!on; toast(on ? t('autostart_on') : t('autostart_off')); });
     const pf = root.querySelector('[data-printing]');
@@ -295,6 +330,21 @@ export async function render(root) {
       root.querySelector('[data-tg] [name=chat]').value = r.chat_id;
       toast(`${t('tg_found')} ${r.name ? '“' + r.name + '”' : ''} — ${t('tg_now_save')}`);
     }),
+    'om-save': (b) => busy(b, async () => {
+      const o = root._online, slug = root.querySelector('[data-om-slug]').value.trim();
+      if (o.published && o.slug && slug !== o.slug && !(await confirmBox(t('om_change_confirm')))) return;
+      state.settings = await put('/settings', { online_slug: slug }); toast(t('saved')); draw();
+    }),
+    'om-now': (b) => busy(b, async () => { const r = await post('/online-menu/publish'); toast(r.published ? t('om_updated') : (r.error || t('om_sending')), !r.published); draw(); }),
+    'om-dl': async () => { // a big PNG with a caption, ready to print or put on a stand
+      const img = new Image(); img.src = root.querySelector('[data-om-qr]').src; await img.decode();
+      const c = document.createElement('canvas'); c.width = 1200; c.height = 1450; const g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = false; g.drawImage(img, 100, 60, 1000, 1000);
+      g.fillStyle = '#000'; g.textAlign = 'center'; g.font = 'bold 72px Tahoma, Arial'; g.fillText('امسح الكود وشوف الأسعار', 600, 1170);
+      g.font = '48px Arial'; g.fillText('Scan for prices', 600, 1250);
+      g.font = 'bold 44px Tahoma, Arial'; g.fillText(state.settings.shop_name || '', 600, 1340);
+      const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = 'online-menu-qr.png'; a.click();
+    },
     'tg-save': (b) => busy(b, async () => { await put('/telegram', tgVals()); toast(t('saved')); draw(); }),
     'tg-test': (b) => busy(b, async () => {
       await put('/telegram', tgVals());

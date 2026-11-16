@@ -301,6 +301,17 @@ async function startApp() {
   try { lang = require('../src/db').settings().language === 'en' ? 'en' : 'ar'; } catch { /* default */ }
   createWindow();
   buildMenu();
+  // automatic updates from crft.live, signed by crft (see updater.js). The installed app only.
+  if (app.isPackaged) require('./updater').start({
+    app: 'play', name: 'crft Play', version: app.getVersion(), exe: process.execPath,
+    ask: (m) => dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+      type: 'info', buttons: ['حدّث الآن · Update now', 'لاحقًا · Later'], defaultId: 0, cancelId: 1, title: APP_NAME,
+      message: `نسخة جديدة من crft Play جاهزة (${m.version})\ncrft Play ${m.version} is ready to install.`,
+      detail: [m.notes?.ar, m.notes?.en].filter(Boolean).join('\n') + (m.notes?.ar || m.notes?.en ? '\n\n' : '') +
+        'هيقفل البرنامج دقيقة ويفتح لوحده، والأجهزة والبيانات زي ما هي.\ncrft Play closes for about a minute and opens again by itself. Your data stays exactly as it is.',
+    }).then((r) => r.response === 0),
+    quit: () => app.quit(), log: (m) => console.log(m),
+  });
   if (activation) activation.destroy(); // the main window exists first, so closing this one doesn't quit the app
 }
 
