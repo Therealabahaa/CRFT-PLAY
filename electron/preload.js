@@ -15,4 +15,6 @@ contextBridge.exposeInMainWorld('psmDesktop', {
   onNavigate: (cb) => ipcRenderer.on('psm:navigate', (_e, page) => cb(String(page))),
   licenseId: () => ipcRenderer.invoke('psm:licenseId'),
   licenseActivate: (key) => ipcRenderer.invoke('psm:licenseActivate', key),
+  licenseState: () => ipcRenderer.invoke('psm:licenseState'),
+  licenseLogin: (username, password) => ipcRenderer.invoke('psm:licenseLogin', username, password),
 });

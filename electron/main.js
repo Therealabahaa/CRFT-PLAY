@@ -247,28 +247,48 @@ app.on('second-instance', () => {
 require('./printing').register();
 
 // ---- licence: the installed app only starts on a PC that has a key made for its machine ID (see license.js). `npm run app` (development) is not checked.
+// A crft account works too (account.js): the subscription token crft.live gives is saved in the same file.
 const lic = require('./license');
+const account = require('./account');
 const LIC_FILE = path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'PlayStation Cyber', 'license.key');
-const licensed = () => { try { return lic.verify(lic.machineId(), fs.readFileSync(LIC_FILE, 'utf8')); } catch { return false; } };
+const savedLicence = () => { try { return fs.readFileSync(LIC_FILE, 'utf8').trim(); } catch { return ''; } };
+const saveLicence = (text) => { fs.mkdirSync(path.dirname(LIC_FILE), { recursive: true }); fs.writeFileSync(LIC_FILE, String(text).trim()); };
+const licState = () => lic.status(lic.machineId(), savedLicence());
+const licensed = () => licState().ok;
 let activation = null;
 ipcMain.handle('psm:licenseId', () => lic.machineId());
+ipcMain.handle('psm:licenseState', () => licState());
 ipcMain.handle('psm:licenseActivate', (_e, key) => {
-  if (!lic.verify(lic.machineId(), key)) return false;
-  fs.mkdirSync(path.dirname(LIC_FILE), { recursive: true });
-  fs.writeFileSync(LIC_FILE, String(key).trim());
+  if (!lic.verify(lic.machineId(), key) || account.isToken(key)) return false;
+  saveLicence(key);
   setImmediate(startApp);
   return true;
 });
+ipcMain.handle('psm:licenseLogin', async (_e, username, password) => {
+  const r = await account.activate('play', lic.machineId(), String(username || ''), String(password || ''), require('os').hostname());
+  if (!r.ok || !r.token) return { ok: false, error: r.error, error_ar: r.error_ar };
+  if (!lic.status(lic.machineId(), r.token).ok) return { ok: false, error: 'crft.live answered, but the answer was not valid for this PC.', error_ar: 'crft.live رد، بس الرد مش صالح للجهاز ده.' };
+  saveLicence(r.token);
+  setImmediate(startApp);
+  return { ok: true };
+});
 function activationWindow() {
   Menu.setApplicationMenu(null);
-  activation = new BrowserWindow({ width: 540, height: 520, resizable: false, title: `Activate ${APP_NAME}`, icon: ICON, backgroundColor: '#111111', autoHideMenuBar: true,
+  activation = new BrowserWindow({ width: 540, height: 640, resizable: false, title: `Activate ${APP_NAME}`, icon: ICON, backgroundColor: '#111111', autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(__dirname, 'preload.js') } });
   activation.loadFile(path.join(__dirname, 'license.html'));
   activation.on('closed', () => { activation = null; if (!licensed()) app.quit(); });
 }
 
 const checkLicence = app.isPackaged || process.env.PSM_LICENCE === '1'; // PSM_LICENCE=1 tries the activation screen from source
-app.whenReady().then(() => { if (!checkLicence || licensed()) startApp(); else activationWindow(); });
+app.whenReady().then(async () => {
+  // a crft account's token that lapsed while the PC was off: renewed now if there is internet, before asking anyone
+  if (checkLicence && !licensed() && account.isToken(savedLicence())) {
+    const r = await account.refresh('play', lic.machineId(), savedLicence());
+    if (r.ok && r.token && lic.status(lic.machineId(), r.token).ok) saveLicence(r.token);
+  }
+  if (!checkLicence || licensed()) startApp(); else activationWindow();
+});
 
 let started = false;
 async function startApp() {
@@ -301,6 +321,17 @@ async function startApp() {
   try { lang = require('../src/db').settings().language === 'en' ? 'en' : 'ar'; } catch { /* default */ }
   createWindow();
   buildMenu();
+  // a crft account: keep its token renewed, and say so a week before the subscription ends
+  if (checkLicence) {
+    account.keepFresh({ app: 'play', machineId: lic.machineId, file: LIC_FILE, log: (m) => console.log(m) });
+    const st = licState();
+    if (st.kind === 'account' && st.daysLeft <= 7) setTimeout(() => dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, {
+      type: 'warning', title: APP_NAME, buttons: ['حسنًا · OK'],
+      message: st.daysLeft === 0 ? 'اشتراك crft Play بينتهي النهارده.\nYour crft Play subscription ends today.'
+        : `اشتراك crft Play بينتهي يوم ${st.endsOn} (فاضل ${st.daysLeft} يوم).\nYour crft Play subscription ends on ${st.endsOn} (${st.daysLeft} days left).`,
+      detail: 'كلّم crft للتجديد. · Contact crft to renew it.',
+    }), 3000);
+  }
   // automatic updates from crft.live, signed by crft (see updater.js). The installed app only.
   if (app.isPackaged) require('./updater').start({
     app: 'play', name: 'crft Play', version: app.getVersion(), exe: process.execPath,

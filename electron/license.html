@@ -3,29 +3,63 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <style>
 /* crft studio palette: ink, paper, one orange */
-body{margin:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;background:#111111;color:#f3f1ec;font:15px Segoe UI,Tahoma,sans-serif;padding:0 32px;box-sizing:border-box}
-img{height:34px;align-self:flex-start;margin-bottom:22px}
-h2{margin:0 0 6px;font-weight:600}p{color:#b9b4ab;margin:6px 0 14px}.en{display:block;font-size:13px;color:#8f8a82;direction:ltr;text-align:right}
-code{display:block;direction:ltr;background:#1c1c1c;border:1px solid #2a2a2a;padding:10px 14px;border-radius:8px;font:19px Consolas,monospace;letter-spacing:1px;user-select:all}
-textarea{width:100%;box-sizing:border-box;direction:ltr;height:60px;margin-top:6px;padding:10px;border-radius:8px;border:1px solid #2a2a2a;background:#1c1c1c;color:#f3f1ec;font:13px Consolas,monospace;outline:none}
-textarea:focus{border-color:#f3f1ec}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;background:#111111;color:#f3f1ec;font:15px Segoe UI,Tahoma,sans-serif;padding:24px 32px;box-sizing:border-box}
+img{height:34px;align-self:flex-start;margin-bottom:18px}
+h2{margin:0 0 6px;font-weight:600}p{color:#b9b4ab;margin:6px 0 12px}.en{display:block;font-size:13px;color:#8f8a82;direction:ltr;text-align:right}
+label{display:block;margin-top:10px;font-size:13px;color:#b9b4ab}
+input,textarea{width:100%;box-sizing:border-box;direction:ltr;margin-top:6px;padding:10px 12px;border-radius:8px;border:1px solid #2a2a2a;background:#1c1c1c;color:#f3f1ec;font:15px Segoe UI,Tahoma,sans-serif;outline:none}
+textarea{height:60px;font:13px Consolas,monospace}
+input:focus,textarea:focus{border-color:#f3f1ec}
+code{display:block;direction:ltr;background:#1c1c1c;border:1px solid #2a2a2a;padding:10px 14px;border-radius:8px;font:17px Consolas,monospace;letter-spacing:1px;user-select:all}
 .row{display:flex;gap:8px}button{margin-top:12px;padding:12px 18px;border:0;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit}
-#go{flex:1;background:#ff5a1f;color:#111111}#copy{background:#2a2a2a;color:#f3f1ec}
-#err{color:#ff9a76;margin-top:10px;min-height:18px}
+.primary{flex:1;background:#ff5a1f;color:#111111}.ghost{background:#2a2a2a;color:#f3f1ec}
+button:disabled{opacity:.6;cursor:wait}
+.err{color:#ff9a76;margin-top:10px;min-height:18px}
+.why{background:#2a1a12;border:1px solid #5a2e19;color:#ffcfb8;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+details{margin-top:18px;border-top:1px solid #2a2a2a;padding-top:12px}summary{cursor:pointer;color:#b9b4ab}
 </style></head><body>
 <img src="../public/crft-mark.png" alt="crft.">
 <h2>تفعيل crft Play <span class="en">Activate crft Play</span></h2>
-<p>اشترِ مفتاح التفعيل من <b>crft.live/buy</b> برقم الجهاز هذا، أو أرسله إلى crft studios على واتساب:<span class="en">Buy your key at <b>crft.live/buy</b> with this machine ID, or send it to crft studios on WhatsApp:</span></p>
-<code id="id">…</code>
-<p style="margin-top:18px">الصق مفتاح التفعيل: <span class="en">Paste the activation key:</span></p>
-<textarea id="key"></textarea>
-<div class="row"><button id="go">تفعيل / Activate</button><button id="copy">نسخ الرقم / Copy ID</button></div><div id="err"></div>
+<div id="why" class="why" hidden></div>
+
+<p>ادخل بحساب crft بتاعك.<span class="en">Sign in with your crft account.</span></p>
+<form id="login">
+  <label>اسم المستخدم · Username<input id="user" autocomplete="username" required></label>
+  <label>كلمة السر · Password<input id="pass" type="password" autocomplete="current-password" required></label>
+  <button id="signin" class="primary" style="width:100%">دخول / Sign in</button>
+  <div id="lerr" class="err"></div>
+</form>
+
+<details id="keybox">
+  <summary>عندي مفتاح تفعيل · I have an activation key</summary>
+  <p>رقم الجهاز ده:<span class="en">This PC's machine ID:</span></p>
+  <code id="id">…</code>
+  <label>مفتاح التفعيل · Activation key<textarea id="key"></textarea></label>
+  <div class="row"><button id="go" class="primary">تفعيل / Activate</button><button id="copy" class="ghost">نسخ الرقم / Copy ID</button></div>
+  <div id="err" class="err"></div>
+</details>
 <script>
 const $ = (s) => document.getElementById(s);
+const both = (ar, en) => `${ar}<span class="en">${en}</span>`;
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
 psmDesktop.licenseId().then((v) => { $('id').textContent = v; });
+psmDesktop.licenseState().then((s) => {
+  const why = s.reason === 'ended' ? both(`اشتراكك انتهى يوم ${esc(s.endsOn)}. بعد ما crft تجدده، ادخل تاني.`, `Your subscription ended on ${esc(s.endsOn)}. Once crft renews it, sign in again.`)
+    : s.reason === 'check' ? both('البرنامج محتاج يتأكد من حسابك. وصّل الجهاز بالإنترنت وادخل تاني.', 'crft Play needs to check your account. Connect this PC to the internet and sign in again.')
+    : s.reason === 'invalid' ? both('ادخل تاني بحساب crft.', 'Sign in again with your crft account.') : '';
+  if (why) { $('why').innerHTML = why; $('why').hidden = false; }
+});
 $('copy').onclick = () => navigator.clipboard.writeText($('id').textContent);
+$('login').onsubmit = async (e) => {
+  e.preventDefault();
+  $('lerr').innerHTML = ''; $('signin').disabled = true;
+  try {
+    const r = await psmDesktop.licenseLogin($('user').value, $('pass').value);
+    if (!r.ok) $('lerr').innerHTML = both(esc(r.error_ar || r.error), esc(r.error));
+  } finally { $('signin').disabled = false; }
+};
 $('go').onclick = async () => {
   $('err').innerHTML = '';
-  if (!await psmDesktop.licenseActivate($('key').value)) $('err').innerHTML = 'هذا المفتاح غير صالح لهذا الجهاز.<span class="en">That key is not valid for this computer.</span>';
+  if (!await psmDesktop.licenseActivate($('key').value)) $('err').innerHTML = both('هذا المفتاح غير صالح لهذا الجهاز.', 'That key is not valid for this computer.');
 };
 </script></body></html>
